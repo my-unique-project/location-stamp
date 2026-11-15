@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeoStamp — Instant Photo Location & Time Stamper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       1. CSS Custom Properties & Modern Reset
+       ========================================================================== */
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: rgba(37, 99, 235, 0.1);
+      --danger: #dc2626;
+      --danger-soft: rgba(220, 38, 38, 0.08);
+      --border: #e2e8f0;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+      --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+      --radius-lg: 1.25rem;
+      --radius-md: 0.75rem;
+      --radius-full: 9999px;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --transition: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-page: #090d16;
+        --bg-card: #111827;
+        --bg-subtle: #1e293b;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-muted: #64748b;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --accent-soft: rgba(59, 130, 246, 0.15);
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.12);
+        --border: #1e293b;
+        --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+      font-family: "Quicksand", sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================================================
+       2. Layout Architecture (Flexbox Centered, Zero Overflow)
+       ========================================================================== */
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(1rem, 3vw, 2rem);
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 54rem;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      width: 100%;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: clamp(1.25rem, 4vw, 2.5rem);
+      transition: transform var(--transition), border-color var(--transition);
+    }
+
+    /* ==========================================================================
+       3. Upload View & Drag-and-Drop Zone
+       ========================================================================== */
+    .upload-zone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: clamp(18rem, 45vh, 26rem);
+      padding: clamp(1.5rem, 4vw, 3rem);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-subtle);
+      cursor: pointer;
+      transition: border-color var(--transition), background-color var(--transition), transform var(--transition);
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag-active {
+      border-color: var(--accent);
+      background-color: var(--accent-soft);
+    }
+
+    .upload-zone.drag-active {
+      transform: scale(0.995);
+    }
+
+    .icon-badge {
+      width: 4rem;
+      height: 4rem;
+      border-radius: var(--radius-full);
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .icon-badge svg {
+      width: 1.85rem;
+      height: 1.85rem;
+    }
+
+    .upload-title {
+      color: #5d0174;
+      font-size: clamp(2.25rem, 2.5vw, 1.6rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+
+    .upload-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      max-width: 26rem;
+      margin-bottom: 1.75rem;
+    }
+
+    /* ==========================================================================
+       4. Buttons & Interactive Controls
+       ========================================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 0.9rem 1.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      border-radius: var(--radius-full);
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      user-select: none;
+      touch-action: manipulation;
+      transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn svg {
+      width: 1.2rem;
+      height: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--border);
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      color: #ffffff;
+    }
+
+    .btn-danger:hover {
+      filter: brightness(1.08);
+    }
+
+    .file-hint {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Inline Validation Banner */
+    .inline-alert {
+      margin-top: 1.25rem;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      background-color: var(--danger-soft);
+      color: var(--danger);
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* ==========================================================================
+       5. Processing / Loading State
+       ========================================================================== */
+    .state-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 18rem;
+      padding: 2rem 1rem;
+    }
+
+    .spinner {
+      width: 3rem;
+      height: 3rem;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      margin-bottom: 1.25rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .state-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .state-desc {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      max-width: 24rem;
+    }
+
+    /* ==========================================================================
+       6. Error State ("Turn on location service")
+       ========================================================================== */
+    .error-badge {
+      width: 4.25rem;
+      height: 4.25rem;
+      border-radius: var(--radius-full);
+      background-color: var(--danger-soft);
+      color: var(--danger);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .error-badge svg {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    .error-heading {
+      font-size: clamp(1.35rem, 3vw, 1.75rem);
+      font-weight: 800;
+      color: var(--danger);
+      margin-bottom: 0.5rem;
+    }
+
+    .error-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-top: 1.5rem;
+    }
+
+    /* ==========================================================================
+       7. Preview & Download View
+       ========================================================================== */
+    .preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .canvas-stage {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #stampCanvas {
+      display: block;
+      max-width: 100%;
+      max-height: 70vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: calc(var(--radius-md) - 0.25rem);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .preview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      justify-content: center;
+      width: 100%;
+      margin-top: 1.5rem;
+    }
+
+    .preview-actions .btn {
+      flex: 1 1 auto;
+      min-width: 11.5rem;
+      max-width: 16rem;
+    }
+
+    /* ==========================================================================
+       8. Utility & Footer Credit
+       ========================================================================== */
+    .hidden {
+      display: none !important;
+    }
+
+    .app-footer {
+      width: 100%;
+      text-align: center;
+      padding-top: 1.25rem;
+      font-size: 1.825rem;
+      color: #9f026b;
+      /* color: var(--text-muted); */
+      letter-spacing: 0.01em;
+    }
+
+    @media (max-width: 480px) {
+      .preview-actions .btn {
+        max-width: 100%;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="app-shell">
+    <section class="card" aria-live="polite">
+
+      <!-- Hidden File Input -->
+      <input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp,image/*" class="hidden"
+        aria-label="Select a photo to upload" />
+
+      <!-- VIEW 1: Minimalist Upload Screen -->
+      <div id="uploadView">
+        <div id="dropZone" class="upload-zone" role="button" tabindex="0"
+          aria-label="Upload Photo or drag and drop an image here">
+          <div class="icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+          <h1 class="upload-title">Capture Data</h1>
+          <p class="upload-subtitle">
+            Capture your location data
+          </p>
+          <button type="button" id="uploadTriggerBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
+            Upload Photo
+          </button>
+          <p class="file-hint">100% adds free secure web application</p>
+        </div>
+
+        <div id="fileErrorBanner" class="inline-alert hidden" role="alert"></div>
+      </div>
+
+      <!-- VIEW 2: Processing / Geolocation Verification State -->
+      <div id="loadingView" class="state-panel hidden">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 id="loadingTitle" class="state-title">Verifying your location...</h2>
+        <p id="loadingSubtitle" class="state-desc">Please allow location access when prompted by your browser.</p>
+      </div>
+
+      <!-- VIEW 3: Location Error State -->
+      <div id="errorView" class="state-panel hidden" role="alert">
+        <div class="error-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+          </svg>
+        </div>
+        <h2 class="error-heading">Turn on location service</h2>
+        <p id="errorDetail" class="state-desc">
+          Location access is required to stamp your photo. Please enable GPS/Location permissions and try again.
+        </p>
+        <div class="error-actions">
+          <button type="button" id="tryAgainBtn" class="btn btn-danger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            Try Again
+          </button>
+          <button type="button" id="errorResetBtn" class="btn btn-secondary">
+            Choose Different Photo
+          </button>
+        </div>
+      </div>
+
+      <!-- VIEW 4: Stamped Preview & One-Click Download -->
+      <div id="previewView" class="preview-wrapper hidden">
+        <div class="canvas-stage">
+          <canvas id="stampCanvas" aria-label="Stamped photo preview"></canvas>
+        </div>
+        <div class="preview-actions">
+          <button type="button" id="downloadBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Photo
+          </button>
+          <button type="button" id="uploadAnotherBtn" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+            Upload Another Photo
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    Developed by Koushik Ghosh
+  </footer>
+
+  <script>
+    /**
+     * GeoStamp — Lightweight, Zero-Dependency Photo Location & Time Stamper
+     * Engineered for zero-lag mobile/desktop image decoding and crisp canvas rendering.
+     */
+    (() => {
+      'use strict';
+
+      // =========================================================================
+      // 1. DOM References & Application State
+      // =========================================================================
+      const dom = {
+        photoInput: document.getElementById('photoInput'),
+        dropZone: document.getElementById('dropZone'),
+        uploadTriggerBtn: document.getElementById('uploadTriggerBtn'),
+        fileErrorBanner: document.getElementById('fileErrorBanner'),
+
+        uploadView: document.getElementById('uploadView'),
+        loadingView: document.getElementById('loadingView'),
+        loadingTitle: document.getElementById('loadingTitle'),
+        loadingSubtitle: document.getElementById('loadingSubtitle'),
+
+        errorView: document.getElementById('errorView'),
+        errorDetail: document.getElementById('errorDetail'),
+        tryAgainBtn: document.getElementById('tryAgainBtn'),
+        errorResetBtn: document.getElementById('errorResetBtn'),
+
+        previewView: document.getElementById('previewView'),
+        canvas: document.getElementById('stampCanvas'),
+        downloadBtn: document.getElementById('downloadBtn'),
+        uploadAnotherBtn: document.getElementById('uploadAnotherBtn')
+      };
+
+      const state = {
+        currentFile: null,
+        decodedSource: null, // Holds ImageBitmap or HTMLImageElement
+        objectUrl: null,
+        isProcessing: false
+      };
+
+      const ALLOWED_MIME_TYPES = new Set([
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif'
+      ]);
+
+      // Safe maximum canvas dimension to prevent mobile Safari/Chrome GPU memory crashes
+      const MAX_CANVAS_DIMENSION = 4096;
+
+      // =========================================================================
+      // 2. View Controller & Memory Management
+      // =========================================================================
+      function switchView(target) {
+        dom.uploadView.classList.toggle('hidden', target !== 'upload');
+        dom.loadingView.classList.toggle('hidden', target !== 'loading');
+        dom.errorView.classList.toggle('hidden', target !== 'error');
+        dom.previewView.classList.toggle('hidden', target !== 'preview');
+      }
+
+      function showFileError(message) {
+        dom.fileErrorBanner.textContent = message;
+        dom.fileErrorBanner.classList.remove('hidden');
+      }
+
+      function clearFileError() {
+        dom.fileErrorBanner.textContent = '';
+        dom.fileErrorBanner.classList.add('hidden');
+      }
+
+      /**
+       * Releases decoded bitmaps, revokes Object URLs, and clears canvas buffers
+       * so repeated uploads stay completely memory-leak-free.
+       */
+      function cleanupResources() {
+        if (state.decodedSource && typeof state.decodedSource.close === 'function') {
+          try {
+            state.decodedSource.close(); // Release ImageBitmap GPU memory
+          } catch (_) {
+            // Ignore if already closed
+          }
+        }
+        state.decodedSource = null;
+
+        if (state.objectUrl) {
+          URL.revokeObjectURL(state.objectUrl);
+          state.objectUrl = null;
+        }
+
+        state.currentFile = null;
+        dom.photoInput.value = '';
+
+        const ctx = dom.canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height);
+        }
+        dom.canvas.width = 0;
+        dom.canvas.height = 0;
+      }
+
+      function resetApp() {
+        cleanupResources();
+        clearFileError();
+        switchView('upload');
+      }
+
+      // =========================================================================
+      // 3. File Validation & Non-Blocking Image Decoding
+      // =========================================================================
+      function validateImageFile(file) {
+        if (!file) {
+          return { valid: false, reason: 'No file selected.' };
+        }
+        const isImageMime = file.type.startsWith('image/') || ALLOWED_MIME_TYPES.has(file.type.toLowerCase());
+        const hasImageExt = /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(file.name);
+
+        if (!isImageMime && !hasImageExt) {
+          return {
+            valid: false,
+            reason: 'Unsupported file type. Please upload a valid image (JPEG, PNG, or WebP).'
+          };
+        }
+        return { valid: true };
+      }
+
+      /**
+       * Decodes large mobile camera photos off the main thread using createImageBitmap
+       * when supported, falling back gracefully to HTMLImageElement + ObjectURL.
+       */
+      async function decodeImageFile(file) {
+        if (typeof createImageBitmap === 'function') {
+          try {
+            const bitmap = await createImageBitmap(file);
+            return bitmap;
+          } catch (_) {
+            // Fallback to Image element if browser fails createImageBitmap on specific format
+          }
+        }
+
+        return new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(file);
+          state.objectUrl = url;
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            state.objectUrl = null;
+            reject(new Error('Unable to decode the selected image file.'));
+          };
+          img.src = url;
+        });
+      }
+
+      // =========================================================================
+      // 4. Geolocation & Reverse Geocoding (with Automatic Coordinate Fallback)
+      // =========================================================================
+      function requestCurrentCoordinates() {
+        return new Promise((resolve, reject) => {
+          if (!('geolocation' in navigator)) {
+            reject(new Error('Geolocation is not supported by this browser.'));
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve(position.coords),
+            (error) => reject(error),
+            {
+              enableHighAccuracy: true,
+              timeout: 12000,
+              maximumAge: 30000
+            }
+          );
+        });
+      }
+
+      function formatCoordinates(lat, lon) {
+        const latDir = lat >= 0 ? 'N' : 'S';
+        const lonDir = lon >= 0 ? 'E' : 'W';
+        return `${Math.abs(lat).toFixed(5)}° ${latDir}, ${Math.abs(lon).toFixed(5)}° ${lonDir}`;
+      }
+
+      /**
+       * Fetches human-readable City/Area via BigDataCloud's free client-side API.
+       * Automatically falls back to formatted Latitude/Longitude if offline, timed out, or rate-limited.
+       */
+      async function resolveLocationLabel(latitude, longitude) {
+        const fallbackCoords = formatCoordinates(latitude, longitude);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+          const endpoint = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
+          const response = await fetch(endpoint, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            return fallbackCoords;
+          }
+
+          const data = await response.json();
+          const parts = [
+            data.locality || data.city,
+            data.principalSubdivision,
+            data.countryName
+          ].filter((part, idx, arr) => Boolean(part) && arr.indexOf(part) === idx);
+
+          if (parts.length > 0) {
+            return `${parts.join(', ')} (${fallbackCoords})`;
+          }
+
+          return fallbackCoords;
+        } catch (_) {
+          clearTimeout(timeoutId);
+          return fallbackCoords;
+        }
+      }
+
+      // =========================================================================
+      // 5. Timestamp Formatting (DD/MM/YYYY | HH:MM:SS AM/PM)
+      // =========================================================================
+      function formatCurrentTimestamp(date = new Date()) {
+        const pad = (num) => String(num).padStart(2, '0');
+
+        const day = pad(date.getDate());
+        const month = pad(date.getMonth() + 1);
+        const year = date.getFullYear();
+
+        let hours = date.getHours();
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 becomes 12
+        const formattedHours = pad(hours);
+
+        return `${day}/${month}/${year} | ${formattedHours}:${minutes}:${seconds} ${ampm}`;
+      }
+
+      // =========================================================================
+      // 6. High-Speed HTML5 Canvas Image Stamping
+      // =========================================================================
+      function wrapCanvasText(ctx, text, maxWidth) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+
+        for (let i = 0; i < words.length; i++) {
+          const testLine = currentLine ? `${currentLine} ${words[i]}` : words[i];
+          if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = words[i];
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        return lines;
+      }
+
+      function renderStampedPhoto(imageSource, locationText, dateTimeText) {
+        const canvas = dom.canvas;
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        const rawWidth = imageSource.width || imageSource.naturalWidth;
+        const rawHeight = imageSource.height || imageSource.naturalHeight;
+
+        // Preserve original aspect ratio while capping extreme resolutions safely
+        let targetWidth = rawWidth;
+        let targetHeight = rawHeight;
+
+        if (targetWidth > MAX_CANVAS_DIMENSION || targetHeight > MAX_CANVAS_DIMENSION) {
+          const scale = Math.min(MAX_CANVAS_DIMENSION / targetWidth, MAX_CANVAS_DIMENSION / targetHeight);
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        // 1. Draw original image cleanly
+        ctx.drawImage(imageSource, 0, 0, targetWidth, targetHeight);
+
+        // 2. Proportional typography scaling based on actual image width
+        const baseFontSize = Math.max(16, Math.floor(targetWidth * 0.024));
+        const subFontSize = Math.max(13, Math.floor(baseFontSize * 0.85));
+        const creditFontSize = Math.max(11, Math.floor(baseFontSize * 0.68));
+        const paddingX = Math.max(18, Math.floor(targetWidth * 0.03));
+        const paddingY = Math.max(16, Math.floor(targetHeight * 0.025));
+        const lineGap = Math.floor(baseFontSize * 0.42);
+        const maxTextWidth = targetWidth - paddingX * 2;
+
+        const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+        // Measure wrapped location lines
+        ctx.font = `600 ${baseFontSize}px ${fontFamily}`;
+        const locationLines = wrapCanvasText(ctx, `📍 ${locationText}`, maxTextWidth);
+
+        ctx.font = `500 ${subFontSize}px ${fontFamily}`;
+        const timeLine = `🕒 ${dateTimeText}`;
+
+        const creditLine = 'Developed by Koushik Ghosh';
+
+        // Calculate total vertical height needed for the stamp block
+        const locationBlockHeight = locationLines.length * (baseFontSize + lineGap);
+        const timeBlockHeight = subFontSize + lineGap;
+        const creditBlockHeight = creditFontSize + Math.floor(lineGap * 0.5);
+        const totalStampHeight = paddingY * 2 + locationBlockHeight + timeBlockHeight + creditBlockHeight;
+
+        // Ensure gradient covers slightly above the text for smooth visual contrast
+        const gradientTop = Math.max(0, targetHeight - Math.max(totalStampHeight * 1.35, targetHeight * 0.22));
+
+        // 3. Draw sleek semi-transparent dark gradient at the bottom
+        const gradient = ctx.createLinearGradient(0, gradientTop, 0, targetHeight);
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        gradient.addColorStop(0.35, 'rgba(0, 0, 0, 0.58)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, gradientTop, targetWidth, targetHeight - gradientTop);
+
+        // Configure crisp text shadow for extra legibility over bright highlights
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = Math.max(4, Math.floor(baseFontSize * 0.25));
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
+        ctx.textBaseline = 'bottom';
+
+        let cursorY = targetHeight - paddingY;
+
+        // 4. Burn Bottom Watermark Text
+        ctx.font = `500 ${creditFontSize}px ${fontFamily}`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.fillText(creditLine, paddingX, cursorY);
+        cursorY -= creditBlockHeight;
+
+        // 5. Burn Current Date & Time
+        ctx.font = `500 ${subFontSize}px ${fontFamily}`;
+        ctx.fillStyle = 'rgba(241, 245, 249, 0.95)';
+        ctx.fillText(timeLine, paddingX, cursorY);
+        cursorY -= timeBlockHeight;
+
+        // 6. Burn Current Location (bottom-up for wrapped lines)
+        ctx.font = `600 ${baseFontSize}px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        for (let i = locationLines.length - 1; i >= 0; i--) {
+          ctx.fillText(locationLines[i], paddingX, cursorY);
+          cursorY -= (baseFontSize + lineGap);
+        }
+
+        ctx.restore();
+      }
+
+      // =========================================================================
+      // 7. Main Workflow Pipeline
+      // =========================================================================
+      async function processUploadedFile(file) {
+        if (state.isProcessing) return;
+        clearFileError();
+
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+          showFileError(validation.reason);
+          return;
+        }
+
+        // Clean any prior photo data before loading the new file
+        cleanupResources();
+        state.currentFile = file;
+        state.isProcessing = true;
+
+        try {
+          switchView('loading');
+          dom.loadingTitle.textContent = 'Preparing photo & verifying location...';
+          dom.loadingSubtitle.textContent = 'Please allow location access when prompted by your browser.';
+
+          // Decode image and request GPS coordinates concurrently for minimal latency
+          const [decodedImg, coords] = await Promise.all([
+            decodeImageFile(file),
+            requestCurrentCoordinates()
+          ]);
+
+          state.decodedSource = decodedImg;
+
+          dom.loadingTitle.textContent = 'Stamping location & timestamp...';
+          dom.loadingSubtitle.textContent = 'Resolving address details...';
+
+          const locationLabel = await resolveLocationLabel(coords.latitude, coords.longitude);
+          const dateTimeLabel = formatCurrentTimestamp(new Date());
+
+          renderStampedPhoto(state.decodedSource, locationLabel, dateTimeLabel);
+          switchView('preview');
+        } catch (err) {
+          // If the image decoded before geolocation failed, keep it cached for "Try Again"
+          if (!state.decodedSource && state.currentFile) {
+            try {
+              state.decodedSource = await decodeImageFile(state.currentFile);
+            } catch (_) {
+              // Handled if file itself was corrupt
+            }
+          }
+
+          if (err && err.code === 1) {
+            dom.errorDetail.textContent = 'Location permission was denied. Please turn on location service in your browser/device settings and tap "Try Again".';
+          } else if (err && err.code === 2) {
+            dom.errorDetail.textContent = 'Your device could not determine your current position. Ensure GPS/Location service is turned on and try again.';
+          } else if (err && err.code === 3) {
+            dom.errorDetail.textContent = 'Location request timed out. Please turn on location service or move to an area with better signal and try again.';
+          } else {
+            dom.errorDetail.textContent = 'Unable to verify your location. Please turn on location service and try again.';
+          }
+
+          switchView('error');
+        } finally {
+          state.isProcessing = false;
+        }
+      }
+
+      /**
+       * Retries geolocation immediately using the already-decoded image in memory.
+       */
+      async function retryLocationVerification() {
+        if (state.isProcessing) return;
+        if (!state.decodedSource && !state.currentFile) {
+          resetApp();
+          return;
+        }
+
+        state.isProcessing = true;
+        try {
+          switchView('loading');
+          dom.loadingTitle.textContent = 'Retrying location verification...';
+          dom.loadingSubtitle.textContent = 'Please ensure location services are enabled.';
+
+          if (!state.decodedSource && state.currentFile) {
+            state.decodedSource = await decodeImageFile(state.currentFile);
+          }
+
+          const coords = await requestCurrentCoordinates();
+          const locationLabel = await resolveLocationLabel(coords.latitude, coords.longitude);
+          const dateTimeLabel = formatCurrentTimestamp(new Date());
+
+          renderStampedPhoto(state.decodedSource, locationLabel, dateTimeLabel);
+          switchView('preview');
+        } catch (_) {
+          switchView('error');
+        } finally {
+          state.isProcessing = false;
+        }
+      }
+
+      // =========================================================================
+      // 8. One-Click High-Quality JPEG Download
+      // =========================================================================
+      function downloadStampedPhoto() {
+        if (!dom.canvas || dom.canvas.width === 0) return;
+
+        try {
+          const dataUrl = dom.canvas.toDataURL('image/jpeg', 0.92);
+          const link = document.createElement('a');
+          const timestampSlug = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+          link.download = `stamped-photo-${timestampSlug}.jpg`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (err) {
+          showFileError('Download failed due to browser memory constraints. Please try a smaller photo.');
+        }
+      }
+
+      // =========================================================================
+      // 9. Event Listeners (Click, Keyboard, Drag-and-Drop)
+      // =========================================================================
+      dom.uploadTriggerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dom.photoInput.click();
+      });
+
+      dom.dropZone.addEventListener('click', () => {
+        dom.photoInput.click();
+      });
+
+      dom.dropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          dom.photoInput.click();
+        }
+      });
+
+      dom.photoInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          processUploadedFile(file);
+        }
+      });
+
+      // Drag and Drop support
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dom.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dom.dropZone.classList.add('drag-active');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dom.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dom.dropZone.classList.remove('drag-active');
+        });
+      });
+
+      dom.dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files.length > 0) {
+          processUploadedFile(files[0]);
+        }
+      });
+
+      dom.tryAgainBtn.addEventListener('click', retryLocationVerification);
+      dom.errorResetBtn.addEventListener('click', resetApp);
+      dom.downloadBtn.addEventListener('click', downloadStampedPhoto);
+      dom.uploadAnotherBtn.addEventListener('click', resetApp);
+
+      // Clean up resources on page unload
+      window.addEventListener('beforeunload', cleanupResources);
+    })();
+  </script>
+</body>
+
+</html>
