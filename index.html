@@ -60,27 +60,29 @@
       padding: 0;
     }
 
-    html,
+    /* FIX: Use 100dvh (Dynamic Viewport Height) as primary with 100vh fallback */
+    html {
+      height: 100vh;
+      height: 100dvh;
+      width: 100%;
+    }
+
     body {
       min-height: 100vh;
+      min-height: 100dvh;
       width: 100%;
       overflow-x: hidden;
+      overflow-y: auto; /* Allow safe vertical scrolling if content is taller than screen */
       font-family: "Quicksand", sans-serif;
       background-color: var(--bg-page);
       color: var(--text-primary);
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
-    }
-
-    /* ==========================================================================
-       2. Layout Architecture (Flexbox Centered, Zero Overflow)
-       ========================================================================== */
-    body {
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       align-items: center;
-      padding: clamp(1rem, 3vw, 2rem);
+      padding: clamp(0.75rem, 2vw, 1.5rem);
     }
 
     .app-shell {
@@ -112,8 +114,8 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      min-height: clamp(18rem, 45vh, 26rem);
-      padding: clamp(1.5rem, 4vw, 3rem);
+      min-height: clamp(16rem, 40vh, 24rem);
+      padding: clamp(1.25rem, 4vw, 2.5rem);
       border: 2px dashed var(--border);
       border-radius: var(--radius-md);
       background-color: var(--bg-subtle);
@@ -150,7 +152,7 @@
 
     .upload-title {
       color: #5d0174;
-      font-size: clamp(2.25rem, 2.5vw, 1.6rem);
+      font-size: clamp(1.5rem, 2.5vw, 1.6rem);
       font-weight: 700;
       letter-spacing: -0.02em;
       margin-bottom: 0.4rem;
@@ -284,7 +286,7 @@
     }
 
     /* ==========================================================================
-       6. Error State ("Turn on location service")
+       6. Error State
        ========================================================================== */
     .error-badge {
       width: 4.25rem;
@@ -343,7 +345,8 @@
     #stampCanvas {
       display: block;
       max-width: 100%;
-      max-height: 70vh;
+      max-height: 60vh;
+      max-height: 60dvh;
       width: auto;
       height: auto;
       object-fit: contain;
@@ -376,11 +379,11 @@
     .app-footer {
       width: 100%;
       text-align: center;
-      padding-top: 1.25rem;
-      font-size: 1.825rem;
+      padding: 0.75rem 0;
+      font-size: 1.25rem;
       color: #9f026b;
-      /* color: var(--text-muted); */
       letter-spacing: 0.01em;
+      flex-shrink: 0;
     }
 
     @media (max-width: 480px) {
@@ -426,7 +429,7 @@
             </svg>
             Upload Photo
           </button>
-          <p class="file-hint">100% adds free secure web application</p>
+          <p class="file-hint">100% ads free secure web application</p>
         </div>
 
         <div id="fileErrorBanner" class="inline-alert hidden" role="alert"></div>
@@ -502,16 +505,9 @@
   </footer>
 
   <script>
-    /**
-     * GeoStamp — Lightweight, Zero-Dependency Photo Location & Time Stamper
-     * Engineered for zero-lag mobile/desktop image decoding and crisp canvas rendering.
-     */
     (() => {
       'use strict';
 
-      // =========================================================================
-      // 1. DOM References & Application State
-      // =========================================================================
       const dom = {
         photoInput: document.getElementById('photoInput'),
         dropZone: document.getElementById('dropZone'),
@@ -536,7 +532,7 @@
 
       const state = {
         currentFile: null,
-        decodedSource: null, // Holds ImageBitmap or HTMLImageElement
+        decodedSource: null,
         objectUrl: null,
         isProcessing: false
       };
@@ -550,12 +546,8 @@
         'image/heif'
       ]);
 
-      // Safe maximum canvas dimension to prevent mobile Safari/Chrome GPU memory crashes
       const MAX_CANVAS_DIMENSION = 4096;
 
-      // =========================================================================
-      // 2. View Controller & Memory Management
-      // =========================================================================
       function switchView(target) {
         dom.uploadView.classList.toggle('hidden', target !== 'upload');
         dom.loadingView.classList.toggle('hidden', target !== 'loading');
@@ -573,17 +565,11 @@
         dom.fileErrorBanner.classList.add('hidden');
       }
 
-      /**
-       * Releases decoded bitmaps, revokes Object URLs, and clears canvas buffers
-       * so repeated uploads stay completely memory-leak-free.
-       */
       function cleanupResources() {
         if (state.decodedSource && typeof state.decodedSource.close === 'function') {
           try {
-            state.decodedSource.close(); // Release ImageBitmap GPU memory
-          } catch (_) {
-            // Ignore if already closed
-          }
+            state.decodedSource.close();
+          } catch (_) {}
         }
         state.decodedSource = null;
 
@@ -609,9 +595,6 @@
         switchView('upload');
       }
 
-      // =========================================================================
-      // 3. File Validation & Non-Blocking Image Decoding
-      // =========================================================================
       function validateImageFile(file) {
         if (!file) {
           return { valid: false, reason: 'No file selected.' };
@@ -628,18 +611,12 @@
         return { valid: true };
       }
 
-      /**
-       * Decodes large mobile camera photos off the main thread using createImageBitmap
-       * when supported, falling back gracefully to HTMLImageElement + ObjectURL.
-       */
       async function decodeImageFile(file) {
         if (typeof createImageBitmap === 'function') {
           try {
             const bitmap = await createImageBitmap(file);
             return bitmap;
-          } catch (_) {
-            // Fallback to Image element if browser fails createImageBitmap on specific format
-          }
+          } catch (_) {}
         }
 
         return new Promise((resolve, reject) => {
@@ -656,9 +633,6 @@
         });
       }
 
-      // =========================================================================
-      // 4. Geolocation & Reverse Geocoding (with Automatic Coordinate Fallback)
-      // =========================================================================
       function requestCurrentCoordinates() {
         return new Promise((resolve, reject) => {
           if (!('geolocation' in navigator)) {
@@ -684,10 +658,6 @@
         return `${Math.abs(lat).toFixed(5)}° ${latDir}, ${Math.abs(lon).toFixed(5)}° ${lonDir}`;
       }
 
-      /**
-       * Fetches human-readable City/Area via BigDataCloud's free client-side API.
-       * Automatically falls back to formatted Latitude/Longitude if offline, timed out, or rate-limited.
-       */
       async function resolveLocationLabel(latitude, longitude) {
         const fallbackCoords = formatCoordinates(latitude, longitude);
         const controller = new AbortController();
@@ -720,9 +690,6 @@
         }
       }
 
-      // =========================================================================
-      // 5. Timestamp Formatting (DD/MM/YYYY | HH:MM:SS AM/PM)
-      // =========================================================================
       function formatCurrentTimestamp(date = new Date()) {
         const pad = (num) => String(num).padStart(2, '0');
 
@@ -736,15 +703,12 @@
         const ampm = hours >= 12 ? 'PM' : 'AM';
 
         hours = hours % 12;
-        hours = hours ? hours : 12; // 0 becomes 12
+        hours = hours ? hours : 12;
         const formattedHours = pad(hours);
 
         return `${day}/${month}/${year} | ${formattedHours}:${minutes}:${seconds} ${ampm}`;
       }
 
-      // =========================================================================
-      // 6. High-Speed HTML5 Canvas Image Stamping
-      // =========================================================================
       function wrapCanvasText(ctx, text, maxWidth) {
         const words = text.split(' ');
         const lines = [];
@@ -772,7 +736,6 @@
         const rawWidth = imageSource.width || imageSource.naturalWidth;
         const rawHeight = imageSource.height || imageSource.naturalHeight;
 
-        // Preserve original aspect ratio while capping extreme resolutions safely
         let targetWidth = rawWidth;
         let targetHeight = rawHeight;
 
@@ -785,10 +748,8 @@
         canvas.width = targetWidth;
         canvas.height = targetHeight;
 
-        // 1. Draw original image cleanly
         ctx.drawImage(imageSource, 0, 0, targetWidth, targetHeight);
 
-        // 2. Proportional typography scaling based on actual image width
         const baseFontSize = Math.max(16, Math.floor(targetWidth * 0.024));
         const subFontSize = Math.max(13, Math.floor(baseFontSize * 0.85));
         const creditFontSize = Math.max(11, Math.floor(baseFontSize * 0.68));
@@ -799,25 +760,20 @@
 
         const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
-        // Measure wrapped location lines
         ctx.font = `600 ${baseFontSize}px ${fontFamily}`;
         const locationLines = wrapCanvasText(ctx, `📍 ${locationText}`, maxTextWidth);
 
         ctx.font = `500 ${subFontSize}px ${fontFamily}`;
         const timeLine = `🕒 ${dateTimeText}`;
-
         const creditLine = 'Developed by Koushik Ghosh';
 
-        // Calculate total vertical height needed for the stamp block
         const locationBlockHeight = locationLines.length * (baseFontSize + lineGap);
         const timeBlockHeight = subFontSize + lineGap;
         const creditBlockHeight = creditFontSize + Math.floor(lineGap * 0.5);
         const totalStampHeight = paddingY * 2 + locationBlockHeight + timeBlockHeight + creditBlockHeight;
 
-        // Ensure gradient covers slightly above the text for smooth visual contrast
         const gradientTop = Math.max(0, targetHeight - Math.max(totalStampHeight * 1.35, targetHeight * 0.22));
 
-        // 3. Draw sleek semi-transparent dark gradient at the bottom
         const gradient = ctx.createLinearGradient(0, gradientTop, 0, targetHeight);
         gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
         gradient.addColorStop(0.35, 'rgba(0, 0, 0, 0.58)');
@@ -826,7 +782,6 @@
         ctx.fillStyle = gradient;
         ctx.fillRect(0, gradientTop, targetWidth, targetHeight - gradientTop);
 
-        // Configure crisp text shadow for extra legibility over bright highlights
         ctx.save();
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = Math.max(4, Math.floor(baseFontSize * 0.25));
@@ -836,19 +791,16 @@
 
         let cursorY = targetHeight - paddingY;
 
-        // 4. Burn Bottom Watermark Text
         ctx.font = `500 ${creditFontSize}px ${fontFamily}`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
         ctx.fillText(creditLine, paddingX, cursorY);
         cursorY -= creditBlockHeight;
 
-        // 5. Burn Current Date & Time
         ctx.font = `500 ${subFontSize}px ${fontFamily}`;
         ctx.fillStyle = 'rgba(241, 245, 249, 0.95)';
         ctx.fillText(timeLine, paddingX, cursorY);
         cursorY -= timeBlockHeight;
 
-        // 6. Burn Current Location (bottom-up for wrapped lines)
         ctx.font = `600 ${baseFontSize}px ${fontFamily}`;
         ctx.fillStyle = '#ffffff';
         for (let i = locationLines.length - 1; i >= 0; i--) {
@@ -859,9 +811,6 @@
         ctx.restore();
       }
 
-      // =========================================================================
-      // 7. Main Workflow Pipeline
-      // =========================================================================
       async function processUploadedFile(file) {
         if (state.isProcessing) return;
         clearFileError();
@@ -872,7 +821,6 @@
           return;
         }
 
-        // Clean any prior photo data before loading the new file
         cleanupResources();
         state.currentFile = file;
         state.isProcessing = true;
@@ -882,7 +830,6 @@
           dom.loadingTitle.textContent = 'Preparing photo & verifying location...';
           dom.loadingSubtitle.textContent = 'Please allow location access when prompted by your browser.';
 
-          // Decode image and request GPS coordinates concurrently for minimal latency
           const [decodedImg, coords] = await Promise.all([
             decodeImageFile(file),
             requestCurrentCoordinates()
@@ -899,13 +846,10 @@
           renderStampedPhoto(state.decodedSource, locationLabel, dateTimeLabel);
           switchView('preview');
         } catch (err) {
-          // If the image decoded before geolocation failed, keep it cached for "Try Again"
           if (!state.decodedSource && state.currentFile) {
             try {
               state.decodedSource = await decodeImageFile(state.currentFile);
-            } catch (_) {
-              // Handled if file itself was corrupt
-            }
+            } catch (_) {}
           }
 
           if (err && err.code === 1) {
@@ -924,9 +868,6 @@
         }
       }
 
-      /**
-       * Retries geolocation immediately using the already-decoded image in memory.
-       */
       async function retryLocationVerification() {
         if (state.isProcessing) return;
         if (!state.decodedSource && !state.currentFile) {
@@ -957,9 +898,6 @@
         }
       }
 
-      // =========================================================================
-      // 8. One-Click High-Quality JPEG Download
-      // =========================================================================
       function downloadStampedPhoto() {
         if (!dom.canvas || dom.canvas.width === 0) return;
 
@@ -977,9 +915,6 @@
         }
       }
 
-      // =========================================================================
-      // 9. Event Listeners (Click, Keyboard, Drag-and-Drop)
-      // =========================================================================
       dom.uploadTriggerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dom.photoInput.click();
@@ -1003,7 +938,6 @@
         }
       });
 
-      // Drag and Drop support
       ['dragenter', 'dragover'].forEach((eventName) => {
         dom.dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
@@ -1032,7 +966,6 @@
       dom.downloadBtn.addEventListener('click', downloadStampedPhoto);
       dom.uploadAnotherBtn.addEventListener('click', resetApp);
 
-      // Clean up resources on page unload
       window.addEventListener('beforeunload', cleanupResources);
     })();
   </script>
